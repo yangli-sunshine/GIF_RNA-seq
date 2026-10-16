@@ -30,10 +30,6 @@ Running the workflow creates `genome_index/`, `sra/`, `fastq/`, `clean/`, `bam/`
 | `count_to_FPKM/FPKM.R` | Computes RPK / TPM / FPKM from counts, averages replicates per group, writes `<species>FPKM.txt` |
 | `count_to_FPKM/species-list.txt` | One species prefix per line, matching `count/<prefix>_count.txt` |
 
-## Requirements
-
-- Module 1: Snakemake, SRA Toolkit (`prefetch` / `vdb-validate` / `fastq-dump`), Trimmomatic (requires Java), HISAT2, SAMtools, featureCounts (Subread)
-- Module 2: R (>= 4.1), `dplyr`, `tidyr`
 
 ## Usage
 
