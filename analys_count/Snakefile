@@ -1,0 +1,148 @@
+# Snakefile
+import os
+
+# Load configuration file
+configfile: "config.yaml"
+
+# Get configuration parameters
+Species = config["species"]
+SAMPLES = config["samples"]
+GENOME_FA = config["genome_fasta"]
+GTF = config["annotation_gtf"]
+TRIM_JAR = config["trimmomatic_jar"]
+TRIM_ADAPTER = config["trimmomatic_adapter"]
+SEQ_TYPE = config.get("seq_type", "PE")  # Default to paired-end PE
+
+# Final target: generate a merged table containing raw counts for all samples
+rule all:
+    input:
+        "results/all_samples_counts.txt",
+        f"count/{Species}_counts.txt"
+
+# Rule 1: Build HISAT2 reference genome index
+rule build_hisat2_index:
+    output:
+        expand("genome_index/genome.{n}.ht2", n=range(1, 9))
+    input:
+        GENOME_FA
+    shell:
+        "mkdir -p genome_index && "
+        "hisat2-build {input} genome_index/genome"
+
+# Rule 2: Prepare adapter file containing adapters and polyA
+rule prepare_adapters:
+    input:
+        TRIM_ADAPTER
+    output:
+        "adapters_combined.fa"
+    shell:
+        "cat {input} > {output} && "
+        "echo '>polyA' >> {output} && "
+        "echo 'AAAAAAAAAAAAAAAAAAAA' >> {output}"
+
+# Rule 3: Download SRA data using prefetch
+rule prefetch:
+    output:
+        "sra/{sample}.sra"
+    shell:
+        "mkdir -p sra && "
+        "prefetch {wildcards.sample} -o {output}"
+
+# Rule 4: Validate the integrity of downloaded data using vdb-validate
+rule vdb_validate:
+    input:
+        "sra/{sample}.sra"
+    output:
+        touch("sra/{sample}.validated")
+    shell:
+        "vdb-validate {input}"
+
+# Rule 5: Convert SRA to FASTQ format using fastq-dump
+rule fastq_dump:
+    input:
+        sra="sra/{sample}.sra",
+        val="sra/{sample}.validated"
+    output:
+        "fastq/{sample}.fastq.gz" if SEQ_TYPE == "SE" else "fastq/{sample}_1.fastq.gz"
+    log:
+        "logs/fastq_dump/{sample}.log"
+    shell:
+        "mkdir -p fastq logs/fastq_dump && "
+        "fastq-dump --split-ei --gzip -O fastq {input.sra} 2> {log} && "
+        "if [ '{SEQ_TYPE}' = 'PE' ]; then "
+        "  gzip fastq/{wildcards.sample}_1.fastq fastq/{wildcards.sample}_2.fastq; "
+        "else "
+        "  gzip fastq/{wildcards.sample}.fastq; "
+        "fi"
+
+# Rule 6: Perform quality control using Trimmomatic
+rule trimmomatic:
+    input:
+        adapter="adapters_combined.fa",
+        r1="fastq/{sample}_1.fastq.gz" if SEQ_TYPE == "PE" else "fastq/{sample}.fastq.gz",
+        r2="fastq/{sample}_2.fastq.gz" if SEQ_TYPE == "PE" else []
+    output:
+        r1="clean/{sample}_clean_1.fastq.gz" if SEQ_TYPE == "PE" else "clean/{sample}_clean.fastq.gz"
+    params:
+        trim_jar=TRIM_JAR,
+        extra="ILLUMINACLIP:{input.adapter}:2:30:10 SLIDINGWINDOW:5:20 LEADING:3 TRAILING:3 MINLEN:36"
+    shell:
+        "mkdir -p clean && "
+        "if [ '{SEQ_TYPE}' = 'PE' ]; then "
+        "  java -jar {params.trim_jar} PE -threads 8 -phred33 {input.r1} {input.r2} "
+        "  {output.r1} clean/{wildcards.sample}_unpaired_1.fastq.gz "
+        "  clean/{wildcards.sample}_clean_2.fastq.gz clean/{wildcards.sample}_unpaired_2.fastq.gz "
+        "  {params.extra}; "
+        "else "
+        "  java -jar {params.trim_jar} SE -threads 8 -phred33 {input.r1} {output.r1} {params.extra}; "
+        "fi"
+
+# Rule 7: Align clean reads to the reference genome using HISAT2
+rule hisat2:
+    input:
+        r1="clean/{sample}_clean_1.fastq.gz" if SEQ_TYPE == "PE" else "clean/{sample}_clean.fastq.gz",
+        r2="clean/{sample}_clean_2.fastq.gz" if SEQ_TYPE == "PE" else [],
+        index=expand("genome_index/genome.{n}.ht2", n=range(1, 9))
+    output:
+        "bam/{sample}.sam"
+    shell:
+        "mkdir -p bam && "
+        "if [ '{SEQ_TYPE}' = 'PE' ]; then "
+        "  hisat2 -x genome_index/genome -1 {input.r1} -2 {input.r2} -S {output}; "
+        "else "
+        "  hisat2 -x genome_index/genome -U {input.r1} -S {output}; "
+        "fi"
+
+# Rule 8: Convert SAM to sorted BAM using SAMtools
+rule samtools_sort:
+    input:
+        "bam/{sample}.sam"
+    output:
+        "bam/{sample}.sorted.bam"
+    shell:
+        "samtools view -bS {input} | samtools sort -o {output}"
+
+# Rule 9: Compute gene expression for all samples in one run using featureCounts
+rule featurecounts:
+    input:
+        bams=expand("bam/{sample}.sorted.bam", sample=SAMPLES)
+    output:
+        "results/all_samples_counts.txt"
+    params:
+        gtf=GTF,
+        pe_flag="-p" if SEQ_TYPE == "PE" else ""
+    shell:
+        "mkdir -p results && "
+        "featureCounts -T 8 {params.pe_flag} -a {params.gtf} -g gene_id -p -o {output} {input.bams}"
+
+# Rule 10: Extract Geneid, Length and count columns, and simplify column names to sample IDs
+rule extract_counts:
+    input:
+        "results/all_samples_counts.txt"
+    output:
+        f"count/{Species}_counts.txt"
+    params:
+        header="Geneid\\tLength\\t" + "\\t".join(SAMPLES)
+    shell:
+        "tail -n +2 {input} | cut -f1,6,7- "
+        "| sed '1s/.*/{params.header}/' > {output}"

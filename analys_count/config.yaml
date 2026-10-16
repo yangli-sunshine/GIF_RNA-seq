@@ -1,0 +1,13 @@
+samples:
+  - "ERR4472638"
+  - "ERR4472639"
+  - "ERR4472640"
+  # Continue adding your SRA accession numbers...
+  #
+species: "P.patens"
+genome_fasta: "Physcomitrella_patens_genome.fa"  # Replace with the absolute path to the reference genome FASTA file
+annotation_gtf: "Physcomitrella_patens.gtf"      # Replace with the absolute path to the GFF or GTF annotation file
+seq_type: "SE"  # "PE" for paired-end sequencing, "SE" for single-end sequencing
+# Trimmomatic-related configuration
+trimmomatic_jar: "/public2/wbliu/soft/trimmomatic.jar"
+trimmomatic_adapter: "/public2/wbliu/soft/software/Trimmomatic-0.39/adapters/TruSeq3-PE.fa"
