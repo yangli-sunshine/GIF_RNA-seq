@@ -63,17 +63,15 @@ rule fastq_dump:
         sra="sra/{sample}.sra",
         val="sra/{sample}.validated"
     output:
-        "fastq/{sample}.fastq.gz" if SEQ_TYPE == "SE" else "fastq/{sample}_1.fastq.gz"
+        r1="fastq/{sample}_1.fastq.gz" if SEQ_TYPE == "PE" else "fastq/{sample}.fastq.gz",
+        r2="fastq/{sample}_2.fastq.gz" if SEQ_TYPE == "PE" else []
     log:
         "logs/fastq_dump/{sample}.log"
+    params:
+        split="--split-files" if SEQ_TYPE == "PE" else ""
     shell:
         "mkdir -p fastq logs/fastq_dump && "
-        "fastq-dump --split-ei --gzip -O fastq {input.sra} 2> {log} && "
-        "if [ '{SEQ_TYPE}' = 'PE' ]; then "
-        "  gzip fastq/{wildcards.sample}_1.fastq fastq/{wildcards.sample}_2.fastq; "
-        "else "
-        "  gzip fastq/{wildcards.sample}.fastq; "
-        "fi"
+        "fastq-dump {params.split} --gzip -O fastq {input.sra} 2> {log}"
 
 # Rule 6: Perform quality control using Trimmomatic
 rule trimmomatic:
@@ -82,10 +80,11 @@ rule trimmomatic:
         r1="fastq/{sample}_1.fastq.gz" if SEQ_TYPE == "PE" else "fastq/{sample}.fastq.gz",
         r2="fastq/{sample}_2.fastq.gz" if SEQ_TYPE == "PE" else []
     output:
-        r1="clean/{sample}_clean_1.fastq.gz" if SEQ_TYPE == "PE" else "clean/{sample}_clean.fastq.gz"
+        r1="clean/{sample}_clean_1.fastq.gz" if SEQ_TYPE == "PE" else "clean/{sample}_clean.fastq.gz",
+        r2="clean/{sample}_clean_2.fastq.gz" if SEQ_TYPE == "PE" else []
     params:
         trim_jar=TRIM_JAR,
-        extra="ILLUMINACLIP:{input.adapter}:2:30:10 SLIDINGWINDOW:5:20 LEADING:3 TRAILING:3 MINLEN:36"
+        extra=lambda wildcards, input: f"ILLUMINACLIP:{input.adapter}:2:30:10 SLIDINGWINDOW:5:20 LEADING:3 TRAILING:3 MINLEN:36"
     shell:
         "mkdir -p clean && "
         "if [ '{SEQ_TYPE}' = 'PE' ]; then "
@@ -133,7 +132,7 @@ rule featurecounts:
         pe_flag="-p" if SEQ_TYPE == "PE" else ""
     shell:
         "mkdir -p results && "
-        "featureCounts -T 8 {params.pe_flag} -a {params.gtf} -g gene_id -p -o {output} {input.bams}"
+        "featureCounts -T 8 {params.pe_flag} -a {params.gtf} -g gene_id -o {output} {input.bams}"
 
 # Rule 10: Extract Geneid, Length and count columns, and simplify column names to sample IDs
 rule extract_counts:

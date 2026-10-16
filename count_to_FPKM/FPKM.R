@@ -1,9 +1,9 @@
 library(dplyr)
-species<-read.table('species-list.txt',header = F,sep = '\t',col.names = 'species')
+species<-read.table('species-list.txt',header = F,sep = ',',col.names = 'species')
 species<-species$species
 
 FPKM_func<-function(spe){
-  count<-read.table(paste0('count/',spe,'_count.txt'),header = T,sep = ',',fill = T,row.names = 1)|>as.matrix()
+  count<-read.table(paste0('count/',spe,'_count.txt'),header = T,sep = '\t',fill = T,row.names = 1)|>as.matrix()
   KB=count[,1]/1000   
   counts = count[,-1]
   RPK=counts/KB

@@ -67,7 +67,6 @@ Rscript FPKM.R
 
 ## Notes
 
-- The example `count/P.patens_count.txt` is tab-separated, while `FPKM.R` reads it with `sep = ','`. Make the two consistent, otherwise the matrix is read as empty.
 - Consider adding local run artifacts (`.RData`, `.Rhistory`) to `.gitignore`.
 
 ## License
