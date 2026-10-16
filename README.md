@@ -40,7 +40,7 @@ GIF_RNA-seq/
 ### 一、计算 count（Snakemake）
 
 ```bash
-cd "analys_count"        # 目录名含空格，需要引号
+cd analys_count
 
 # 编辑 config.yaml：样本号、参考基因组 FASTA、GTF 注释、SE/PE、Trimmomatic 路径与接头文件
 
@@ -67,7 +67,6 @@ Rscript FPKM.R
 
 ## 备注
 
-- `analys_count/` 目录名含空格，命令行中必须加引号。
 - 示例 `count/P.patens_count.txt` 为制表符分隔，而 `FPKM.R` 按逗号读取（`sep = ','`），两者需统一，否则会读成空矩阵。
 - 建议将本地运行残留（`.RData`、`.Rhistory`）加入 `.gitignore`。
 
