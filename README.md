@@ -65,10 +65,6 @@ Rscript FPKM.R
 - Output: `<species>FPKM.txt` with columns `Gene`, `FPKM1`, `FPKM2`, ...
 - Grouping: a trailing `.<digits>` is stripped from each column name and used as the group, then replicates are averaged, so name replicate samples `protonema.1`, `protonema.2`, `protonema.3`.
 
-## Notes
-
-- Consider adding local run artifacts (`.RData`, `.Rhistory`) to `.gitignore`.
-
 ## License
 
 Unlicense (public domain).
