@@ -1,75 +1,75 @@
 # GIF_RNA-seq
 
-RNA-seq 分析脚本，包含两个可独立使用的模块：
+RNA-seq analysis scripts, organized into two independent modules:
 
-- `analys_count/`：用 Snakemake 管理，从 SRA 数据计算基因表达 **count** 矩阵。
-- `count_to_FPKM/`：用 R 脚本把 count 矩阵换算为 **FPKM**。
+- `analys_count/` - a Snakemake workflow that computes a gene expression **count** matrix from SRA data.
+- `count_to_FPKM/` - an R script that converts a count matrix into **FPKM**.
 
-## 目录结构
+## Directory Structure
 
 ```text
 GIF_RNA-seq/
-├── analys_count/               # 模块一：count 计算（Snakemake）
-│   ├── config.yaml             # 样本、参考基因组、注释、测序类型等配置
-│   └── Snakefile               # 主流程
-└── count_to_FPKM/              # 模块二：count -> FPKM（R）
-    ├── FPKM.R                  # 主脚本
-    ├── species-list.txt        # 待处理物种列表
-    └── count/                  # 输入 count 矩阵
-        └── P.patens_count.txt  # 示例
+├── analys_count/               # Module 1: count calculation (Snakemake)
+│   ├── config.yaml             # samples, reference genome, annotation, sequencing type
+│   └── Snakefile               # main workflow
+└── count_to_FPKM/              # Module 2: count -> FPKM (R)
+    ├── FPKM.R                  # main script
+    ├── species-list.txt        # species to process
+    └── count/                  # input count matrices
+        └── P.patens_count.txt  # example
 ```
 
-流程运行后会在 `analys_count/` 下自动生成 `genome_index/`、`sra/`、`fastq/`、`clean/`、`bam/`、`logs/`、`results/`、`count/`。
+Running the workflow creates `genome_index/`, `sra/`, `fastq/`, `clean/`, `bam/`, `logs/`, `results/` and `count/` inside `analys_count/`.
 
-## 文件说明
+## Files
 
-| 文件 | 说明 |
+| File | Description |
 | --- | --- |
-| `analys_count/config.yaml` | 唯一配置入口：`samples`（SRA accession）、`species`、`genome_fasta`、`annotation_gtf`、`seq_type`（SE/PE）、Trimmomatic jar 与接头文件 |
-| `analys_count/Snakefile` | 10 条 rule：建 HISAT2 索引 -> 合并接头 -> prefetch 下载 -> vdb-validate 校验 -> fastq-dump 转 FASTQ -> Trimmomatic 质控 -> HISAT2 比对 -> samtools 排序 -> featureCounts 计数 -> 整理表格 |
-| `count_to_FPKM/FPKM.R` | 由 count 计算 RPK / TPM / FPKM，按分组取重复均值，输出 `<物种>FPKM.txt` |
-| `count_to_FPKM/species-list.txt` | 每行一个物种前缀，对应 `count/<前缀>_count.txt` |
+| `analys_count/config.yaml` | Single configuration entry point: `samples` (SRA accessions), `species`, `genome_fasta`, `annotation_gtf`, `seq_type` (SE/PE), Trimmomatic jar and adapter file |
+| `analys_count/Snakefile` | 10 rules: build HISAT2 index -> merge adapters -> prefetch -> vdb-validate -> fastq-dump -> Trimmomatic -> HISAT2 alignment -> samtools sort -> featureCounts -> tidy table |
+| `count_to_FPKM/FPKM.R` | Computes RPK / TPM / FPKM from counts, averages replicates per group, writes `<species>FPKM.txt` |
+| `count_to_FPKM/species-list.txt` | One species prefix per line, matching `count/<prefix>_count.txt` |
 
-## 依赖
+## Requirements
 
-- 模块一：Snakemake、SRA Toolkit（`prefetch` / `vdb-validate` / `fastq-dump`）、Trimmomatic（需 Java）、HISAT2、SAMtools、featureCounts（Subread）
-- 模块二：R（>= 4.1）、`dplyr`、`tidyr`
+- Module 1: Snakemake, SRA Toolkit (`prefetch` / `vdb-validate` / `fastq-dump`), Trimmomatic (requires Java), HISAT2, SAMtools, featureCounts (Subread)
+- Module 2: R (>= 4.1), `dplyr`, `tidyr`
 
-## 使用方法
+## Usage
 
-### 一、计算 count（Snakemake）
+### 1. Count matrices (Snakemake)
 
 ```bash
 cd analys_count
 
-# 编辑 config.yaml：样本号、参考基因组 FASTA、GTF 注释、SE/PE、Trimmomatic 路径与接头文件
+# edit config.yaml: sample accessions, reference FASTA, GTF annotation, SE/PE, Trimmomatic paths
 
-snakemake -np            # 试运行，检查任务与命令
-snakemake --cores 16     # 正式运行
-snakemake --cores 16 --rerun-incomplete   # 中断后接续
+snakemake -np            # dry run, inspect jobs and commands
+snakemake --cores 16     # run
+snakemake --cores 16 --rerun-incomplete   # resume an interrupted run
 ```
 
-结果表：
+Output tables:
 
-- `results/all_samples_counts.txt`：featureCounts 原始输出
-- `count/<species>_counts.txt`：只保留 `Geneid`、`Length` 及各样本 count 列
+- `results/all_samples_counts.txt` - raw featureCounts output
+- `count/<species>_counts.txt` - `Geneid`, `Length` and the per-sample count columns only
 
-### 二、计算 FPKM（R）
+### 2. FPKM (R)
 
 ```bash
-cd count_to_FPKM         # 脚本使用相对路径，必须在 count_to_FPKM/ 下运行
+cd count_to_FPKM         # the script uses relative paths, run it inside count_to_FPKM/
 Rscript FPKM.R
 ```
 
-- 输入：`count/<物种>_count.txt`，第 1 列基因 ID，第 2 列基因长度（bp），其余列为各样本 count；`species-list.txt` 每行一个前缀。
-- 输出：`<物种>FPKM.txt`，列为 `Gene` + `FPKM1`、`FPKM2` ...
-- 分组：列名末尾的 `.<数字>` 会被去掉作为分组名并取组内均值，重复样本建议命名为 `protonema.1`、`protonema.2`、`protonema.3`。
+- Input: `count/<species>_count.txt` - column 1 is the gene ID, column 2 is the gene length (bp), the remaining columns are per-sample counts; `species-list.txt` holds one species prefix per line.
+- Output: `<species>FPKM.txt` with columns `Gene`, `FPKM1`, `FPKM2`, ...
+- Grouping: a trailing `.<digits>` is stripped from each column name and used as the group, then replicates are averaged, so name replicate samples `protonema.1`, `protonema.2`, `protonema.3`.
 
-## 备注
+## Notes
 
-- 示例 `count/P.patens_count.txt` 为制表符分隔，而 `FPKM.R` 按逗号读取（`sep = ','`），两者需统一，否则会读成空矩阵。
-- 建议将本地运行残留（`.RData`、`.Rhistory`）加入 `.gitignore`。
+- The example `count/P.patens_count.txt` is tab-separated, while `FPKM.R` reads it with `sep = ','`. Make the two consistent, otherwise the matrix is read as empty.
+- Consider adding local run artifacts (`.RData`, `.Rhistory`) to `.gitignore`.
 
-## 许可证
+## License
 
-Unlicense（公有领域）。
+Unlicense (public domain).
